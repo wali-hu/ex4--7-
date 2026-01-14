@@ -1,0 +1,90 @@
+# Lightning Network Payment Channel Implementation
+
+**Student Name**: [Your Name]  
+**Student ID**: [Your ID]
+
+## Exercise Description
+
+This project implements a bidirectional payment channel system similar to the Lightning Network. The implementation includes:
+
+- Smart contract for secure fund locking and channel management
+- Python nodes for off-chain state management and communication
+- Appeal mechanism to prevent fraud and old state attacks
+- Secure fund settlement after channel closure
+
+## Setup Instructions
+
+### Prerequisites
+- Node.js and npm
+- Python 3.12+
+- Git
+
+### Installation
+
+1. **Clone and navigate to project**:
+   ```bash
+   cd /path/to/ex4--7-
+   ```
+
+2. **Install Hardhat dependencies**:
+   ```bash
+   npm install
+   ```
+
+3. **Create Python virtual environment**:
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+4. **Install Python dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+### Running the Project
+
+1. **Start Hardhat local blockchain**:
+   ```bash
+   npx hardhat node
+   ```
+
+2. **In another terminal, run tests**:
+   ```bash
+   source venv/bin/activate
+   python -m pytest
+   ```
+
+3. **Test web3 connectivity**:
+   ```bash
+   source venv/bin/activate
+   python test_web3_connection.py
+   ```
+
+## Contract Behavior Summary
+
+The Channel.sol contract implements:
+- **Fund Locking**: Both parties deposit funds into the contract
+- **State Management**: Tracks channel states with serial numbers
+- **Channel Closure**: Either party can close with latest signed state
+- **Appeal Window**: Time period for challenging fraudulent closures
+- **Final Settlement**: Secure fund distribution after appeal period
+
+## Project Structure
+
+```
+├── contracts/          # Solidity smart contracts
+├── client/            # Python node implementation
+├── tests/             # Test files
+├── hardhat.config.js  # Hardhat configuration
+├── requirements.txt   # Python dependencies
+└── README             # This file
+```
+
+## Milestone 1 Status: ✅ COMPLETED
+
+- [x] Hardhat project initialized and configured
+- [x] Local blockchain node running successfully
+- [x] Python virtual environment setup
+- [x] web3.py connectivity verified
+- [x] All dependencies installed and tested
