@@ -88,3 +88,49 @@ The Channel.sol contract implements:
 - [x] Python virtual environment setup
 - [x] web3.py connectivity verified
 - [x] All dependencies installed and tested
+
+## Milestone 2 Status: ✅ COMPLETED
+
+### Part 1: Channel State Storage + Constructor ✅
+- [x] Constructor implemented with participant addresses
+- [x] Deposit amounts stored correctly
+- [x] Timeout/appeal period configured
+- [x] Contract compiles without errors
+- [x] Deployment works from Python
+- [x] State variables readable via getters
+
+### Part 2: Channel Closing Logic ✅
+- [x] `oneSidedClose()` function implemented
+- [x] Signature validation working
+- [x] State recording functional
+- [x] Appeal timer triggered correctly
+- [x] Events emitted (ChannelClosed)
+
+### Part 3: Appeal/Challenge Logic ✅
+- [x] `appealClosure()` function implemented
+- [x] Signature validation for appeals
+- [x] Serial number comparison working
+- [x] Newer state overrides older state
+- [x] Invalid/lower states rejected
+- [x] Events emitted (AppealMade)
+
+### Part 4: Final Settlement Logic ✅
+- [x] `finalize()` implemented via `withdrawFunds()`
+- [x] Ether transferred correctly to both parties
+- [x] Re-entry protection working
+- [x] One-time execution enforced
+- [x] All unit tests passing
+
+### Testing
+Run Milestone 2 verification:
+```bash
+source venv/bin/activate
+python test_milestone2.py
+```
+
+Expected output shows:
+- Contract deployment with correct state
+- Channel closure with signed state
+- Appeal mechanism overriding old state
+- Final settlement distributing funds correctly
+- Re-entry protection preventing double withdrawal
