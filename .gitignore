@@ -1,23 +1,29 @@
-# Dependencies
-node_modules/
+# Python
 venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 .Python
-
-# Build artifacts
-artifacts/
-cache/
-build/
+*.so
+*.egg
+*.egg-info/
 dist/
+build/
+.pytest_cache/
+
+# Hardhat
+node_modules/
+cache/
+artifacts/
+hardhat.log
 
 # IDE
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
 
 # OS
 .DS_Store
@@ -25,22 +31,4 @@ Thumbs.db
 
 # Logs
 *.log
-hardhat.log
-
-# Environment
-.env
-.env.local
-
-# Testing
-.coverage
-.pytest_cache/
-coverage/
-
-# Hardhat
-typechain/
-typechain-types/
-
-# Temporary files
-*.tmp
-*.temp
-test_web3_connection.py
+npm-debug.log*
