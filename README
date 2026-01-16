@@ -185,3 +185,48 @@ Expected output shows:
 - Protection against double-closure attempts
 
 All 7 basic scenario tests passing
+
+## Milestone 4 Status: COMPLETED
+
+### Part 1: Basic Scenario Tests
+- [x] Deploy contract tests
+- [x] Create channel tests
+- [x] Exchange updates tests
+- [x] Close channel tests
+- [x] Final settlement tests
+- [x] All basic tests pass (7/7)
+- [x] Logs verified
+
+### Part 2: Malicious Behavior Tests
+- [x] Invalid signature tests
+- [x] Wrong serial number tests
+- [x] Forged signature tests
+- [x] Out-of-order update tests
+- [x] Invalid balance sum tests
+- [x] Appeal after timeout tests
+- [x] Double withdrawal prevention tests
+- [x] Negative/zero amount tests
+- [x] Insufficient balance tests
+- [x] Fabricated state tests
+- [x] All malicious behavior tests pass (10/10)
+- [x] Contract resists all attacks
+- [x] No funds are stealable
+
+### Testing
+Run all tests:
+```bash
+source venv/bin/activate
+python -m pytest tests/ -v
+```
+
+Run only malicious behavior tests:
+```bash
+source venv/bin/activate
+python -m pytest tests/test_malicious_behavior.py -v
+```
+
+Expected output:
+- 17 total tests passing
+- 7 basic scenario tests
+- 10 malicious behavior tests
+- All attack vectors properly defended
