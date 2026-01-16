@@ -1,10 +1,8 @@
 from typing import Dict, Optional, List, Any
-from client.utils import ChannelStateMessage, EthereumAddress, IPAddress, PrivateKey, Signature
+from client.utils import ChannelStateMessage, EthereumAddress, IPAddress, PrivateKey, Signature, Contract, sign, validate_signature, APPEAL_PERIOD
 from hexbytes import HexBytes
 from eth_typing import HexAddress, HexStr
-
-
-from client.network import Network
+from client.network import Network, Message
 from client.node import Node
 from web3 import Web3
 
@@ -13,104 +11,240 @@ class LightningNode(Node):
     """represents a payment channel node that can support several payment channels."""
 
     def __init__(self, private_key: PrivateKey, eth_address: EthereumAddress, networking_interface: Network, ip: IPAddress, w3: Web3, contract_bytecode: str, contract_abi: Dict[str, Any]) -> None:
-        """Creates a new node that uses the given ethereum account (private key and address),
-        communicates on the given network and has the provided ip address. 
-        It communicates with the blockchain via the supplied Web3 object.
-        It is also supplied with the bytecode and ABI of the Channel contract that it will deploy.
-        All values are assumed to be legal."""
-        pass
+        self._private_key = private_key
+        self._eth_address = eth_address
+        self._network = networking_interface
+        self._ip = ip
+        self._w3 = w3
+        self._bytecode = contract_bytecode
+        self._abi = contract_abi
+        self._channels: Dict[EthereumAddress, Dict[str, Any]] = {}
 
     def get_list_of_channels(self) -> List[EthereumAddress]:
-        """returns a list of channels managed by this node. The list will include all open channels,
-        as well as closed channels that still have the node's money in them.
-        Channels are removed from the list once funds have been withdrawn from them."""
-        return []
+        return list(self._channels.keys())
 
     def establish_channel(self, other_party_eth_address: EthereumAddress, other_party_ip_address: IPAddress,  amount_in_wei: int) -> EthereumAddress:
-        """Creates a new channel that connects the address of this node and the address of a peer.
-        The channel is funded by the current node, using the given amount of money from the node's address.
-        returns the address of the channel contract. Raises a ValueError exception if the amount given is not positive or if it exceeds the funds controlled by the account.
-        The IPAddress and ethereum address of the other party are assumed to be correct."""
-        return EthereumAddress(HexAddress(HexStr("0x0")))
+        if amount_in_wei <= 0:
+            raise ValueError("Amount must be positive")
+        if self._w3.eth.get_balance(self._eth_address) < amount_in_wei:
+            raise ValueError("Insufficient funds")
+        
+        contract = Contract.deploy(self._w3, self._bytecode, self._abi, self, 
+                                   (other_party_eth_address, APPEAL_PERIOD), 
+                                   {'value': amount_in_wei})
+        
+        self._channels[contract.address] = {
+            'other_party': other_party_eth_address,
+            'other_ip': other_party_ip_address,
+            'total_deposit': amount_in_wei,
+            'balance1': amount_in_wei,
+            'balance2': 0,
+            'serial': 0,
+            'last_state': None,
+            'closed': False,
+            'is_party1': True
+        }
+        
+        self._network.send_message(other_party_ip_address, Message.NOTIFY_OF_CHANNEL, contract.address, self._ip)
+        return contract.address
 
     @property
     def eth_address(self) -> EthereumAddress:
-        """returns the ethereum address of this node"""
-        return EthereumAddress(HexAddress(HexStr("0x0")))
+        return self._eth_address
 
     @property
     def ip_address(self) -> IPAddress:
-        return IPAddress("")
+        return self._ip
 
     @property
     def private_key(self) -> PrivateKey:
-        """returns the private key of this node"""
-        return PrivateKey(HexBytes("0x0"))
+        return self._private_key
 
     def send(self, channel_address: EthereumAddress, amount_in_wei: int) -> None:
-        """sends money in one of the open channels this node is participating in and notifies the other node.
-        This operation should not involve the blockchain.
-        The channel that should be used is identified by its contract's address.
-        If the balance in the channel is insufficient, or if a node tries to send a 0 or negative amount, raise an exception (without messaging the other node).
-        If the channel is already closed, raise an exception."""
+        if channel_address not in self._channels:
+            raise Exception("Unknown channel")
+        if amount_in_wei <= 0:
+            raise Exception("Amount must be positive")
+        
+        chan = self._channels[channel_address]
+        if chan['closed']:
+            raise Exception("Channel is closed")
+        
+        my_balance = chan['balance1'] if chan['is_party1'] else chan['balance2']
+        if my_balance < amount_in_wei:
+            raise Exception("Insufficient balance")
+        
+        new_serial = chan['serial'] + 1
+        if chan['is_party1']:
+            new_b1 = chan['balance1'] - amount_in_wei
+            new_b2 = chan['balance2'] + amount_in_wei
+        else:
+            new_b1 = chan['balance1'] + amount_in_wei
+            new_b2 = chan['balance2'] - amount_in_wei
+        
+        msg = ChannelStateMessage(channel_address, new_b1, new_b2, new_serial)
+        signed_msg = sign(self._private_key, msg)
+        
+        chan['balance1'] = new_b1
+        chan['balance2'] = new_b2
+        chan['serial'] = new_serial
+        
+        self._network.send_message(chan['other_ip'], Message.RECEIVE_FUNDS, signed_msg)
 
     def get_current_channel_state(self, channel_address: EthereumAddress) -> ChannelStateMessage:
-        """
-        Gets the latest state of the channel that was accepted by the other node
-        (i.e., the last signed channel state message received from the other party).
-        If the node is not aware of this channel, raise an exception.
-        """
-        return ChannelStateMessage(EthereumAddress(HexAddress(HexStr("0x0"))), 0, 0, 0, Signature((0, "", "")))
+        if channel_address not in self._channels:
+            raise Exception("Unknown channel")
+        
+        state = self._channels[channel_address]['last_state']
+        if state is None:
+            chan = self._channels[channel_address]
+            return ChannelStateMessage(channel_address, chan['balance1'], chan['balance2'], 0, Signature((0, b'\x00'*32, b'\x00'*32)))
+        return state
 
     def close_channel(self, channel_address: EthereumAddress, channel_state: Optional[ChannelStateMessage] = None) -> bool:
-        """
-        Closes the channel at the given contract address.
-        If a channel state is not provided, the node attempts to close the channel with the latest state that it has,
-        otherwise, it uses the channel state that is provided (this will allow a node to try to cheat its peer).
-        Closing the channel begins the appeal period automatically.
-        If the channel is already closed, throw an exception.
-        The other node is *not* notified of the closed channel.
-        If the transaction succeeds, this method returns True, otherwise False."""
-        return True
+        if channel_address not in self._channels:
+            raise Exception("Unknown channel")
+        
+        chan = self._channels[channel_address]
+        if chan['closed']:
+            raise Exception("Channel already closed")
+        
+        contract = Contract(channel_address, self._abi, self._w3)
+        
+        if channel_state is None:
+            channel_state = self.get_current_channel_state(channel_address)
+        
+        if channel_state.serial_number == 0:
+            receipt = contract.transact(self, "oneSidedClose", (chan['balance1'], 0, 0, 0, b'\x00'*32, b'\x00'*32))
+        else:
+            v, r, s = channel_state.sig
+            receipt = contract.transact(self, "oneSidedClose", 
+                                      (channel_state.balance1, channel_state.balance2, 
+                                       channel_state.serial_number, v, r, s))
+        
+        chan['closed'] = True
+        return receipt['status'] == 1
 
     def appeal_closed_chan(self, contract_address: EthereumAddress) -> bool:
-        """
-        Checks if the channel at the given address needs to be appealed, i.e., if it was closed with an old channel state.
-        If so, an appeal is sent to the blockchain.
-        If an appeal was sent, this method returns True. 
-        If no appeal was sent (for any reason), this method returns False.
-        """
-        return True
+        if contract_address not in self._channels:
+            return False
+        
+        chan = self._channels[contract_address]
+        contract = Contract(contract_address, self._abi, self._w3)
+        
+        try:
+            is_closed = contract.call("channelClosed")
+            if not is_closed:
+                return False
+        except:
+            return False
+        
+        if not chan['closed']:
+            chan['closed'] = True
+        
+        on_chain_serial = contract.call("currentSerialNum")
+        
+        my_state = chan['last_state']
+        if my_state is None or my_state.serial_number <= on_chain_serial:
+            return False
+        
+        v, r, s = my_state.sig
+        receipt = contract.transact(self, "appealClosure", 
+                                   (my_state.balance1, my_state.balance2, 
+                                    my_state.serial_number, v, r, s))
+        return receipt['status'] == 1
 
     def withdraw_funds(self, contract_address: EthereumAddress) -> int:
-        """allows the user to claim the funds from the channel.
-        The channel needs to exist, and be after the appeal period time. Otherwise an exception should be raised.
-        After the funds are withdrawn successfully, the node forgets this channel (it no longer appears in its open channel lists).
-        If the balance of this node in the channel is 0, there is no need to create a withdraw transaction on the blockchain.
-        This method returns the amount of money that was withdrawn (in wei)."""
-        return 0
+        if contract_address not in self._channels:
+            raise Exception("Unknown channel")
+        
+        contract = Contract(contract_address, self._abi, self._w3)
+        
+        try:
+            balance = contract.call("getBalance", call_kwargs={'from': self._eth_address})
+        except:
+            raise Exception("Cannot withdraw yet")
+        
+        if balance > 0:
+            contract.transact(self, "withdrawFunds", (self._eth_address,))
+        
+        del self._channels[contract_address]
+        return balance
 
     def notify_of_channel(self, contract_address: EthereumAddress, other_party_ip_address: IPAddress) -> None:
-        """This method is called to notify the node that another node created a channel in which it is participating.
-        The contract address for the channel is provided.
-
-        The message is ignored if:
-        1) This node is already aware of the channel
-        2) The channel address that is provided does not involve this node as the second owner of the channel
-        3) The channel is already closed
-        4) The appeal period on the channel is too low
-        For this exercise, there is no need to check that the contract at the given address is indeed a channel contract (this is a bit hard to do well)."""
+        if contract_address in self._channels:
+            return
+        
+        contract = Contract(contract_address, self._abi, self._w3)
+        
+        try:
+            party1 = contract.call("party1")
+            party2 = contract.call("party2")
+            closed = contract.call("channelClosed")
+            appeal_period = contract.call("appealPeriodLen")
+            total = contract.call("totalDeposit")
+        except:
+            return
+        
+        if self._eth_address not in [party1, party2]:
+            return
+        if closed or appeal_period < APPEAL_PERIOD:
+            return
+        
+        is_party1 = (self._eth_address == party1)
+        
+        self._channels[contract_address] = {
+            'other_party': party2 if is_party1 else party1,
+            'other_ip': other_party_ip_address,
+            'total_deposit': total,
+            'balance1': total,
+            'balance2': 0,
+            'serial': 0,
+            'last_state': None,
+            'closed': False,
+            'is_party1': is_party1
+        }
 
     def ack_transfer(self, msg: ChannelStateMessage) -> None:
-        """This method receives a confirmation from another node about the transfer.
-        The confirmation is supposed to be a signed message containing the last state sent to the other party,
-        but now signed by the other party. In fact, any message that is signed properly, with a larger serial number,
-        and that does not strictly decrease the balance of this node, should be accepted here.
-        If the channel in this message does not exist, or the message is not valid, it is simply ignored."""
+        if msg.contract_address not in self._channels:
+            return
+        
+        chan = self._channels[msg.contract_address]
+        if not validate_signature(msg, chan['other_party']):
+            return
+        if msg.serial_number < chan['serial']:
+            return
+        
+        my_old_balance = chan['balance1'] if chan['is_party1'] else chan['balance2']
+        my_new_balance = msg.balance1 if chan['is_party1'] else msg.balance2
+        
+        if my_new_balance < my_old_balance:
+            return
+        
+        chan['last_state'] = msg
 
     def receive_funds(self, state_msg: ChannelStateMessage) -> None:
-        """A method that is called when this node receives funds through the channel.
-        A signed message with the new channel state is receieved and should be checked. If this message is not valid
-        (bad serial number, signature, or amounts of money are not consistent with a transfer to this node) then this message is ignored.
-        Otherwise, the same channel state message should be sent back, this time signed by the node as an ACK_TRANSFER message.
-        """
+        if state_msg.contract_address not in self._channels:
+            return
+        
+        chan = self._channels[state_msg.contract_address]
+        if not validate_signature(state_msg, chan['other_party']):
+            return
+        if state_msg.serial_number <= chan['serial']:
+            return
+        
+        my_old_balance = chan['balance1'] if chan['is_party1'] else chan['balance2']
+        my_new_balance = state_msg.balance1 if chan['is_party1'] else state_msg.balance2
+        
+        if my_new_balance < my_old_balance:
+            return
+        
+        chan['balance1'] = state_msg.balance1
+        chan['balance2'] = state_msg.balance2
+        chan['serial'] = state_msg.serial_number
+        chan['last_state'] = state_msg
+        
+        ack_msg = sign(self._private_key, ChannelStateMessage(
+            state_msg.contract_address, state_msg.balance1, state_msg.balance2, state_msg.serial_number))
+        
+        self._network.send_message(chan['other_ip'], Message.ACK_TRANSFER, ack_msg)

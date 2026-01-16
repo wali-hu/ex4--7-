@@ -81,7 +81,7 @@ The Channel.sol contract implements:
 └── README             # This file
 ```
 
-## Milestone 1 Status: ✅ COMPLETED
+## Milestone 1 Status: COMPLETED
 
 - [x] Hardhat project initialized and configured
 - [x] Local blockchain node running successfully
@@ -89,9 +89,9 @@ The Channel.sol contract implements:
 - [x] web3.py connectivity verified
 - [x] All dependencies installed and tested
 
-## Milestone 2 Status: ✅ COMPLETED
+## Milestone 2 Status: COMPLETED
 
-### Part 1: Channel State Storage + Constructor ✅
+### Part 1: Channel State Storage + Constructor
 - [x] Constructor implemented with participant addresses
 - [x] Deposit amounts stored correctly
 - [x] Timeout/appeal period configured
@@ -99,14 +99,14 @@ The Channel.sol contract implements:
 - [x] Deployment works from Python
 - [x] State variables readable via getters
 
-### Part 2: Channel Closing Logic ✅
+### Part 2: Channel Closing Logic
 - [x] `oneSidedClose()` function implemented
 - [x] Signature validation working
 - [x] State recording functional
 - [x] Appeal timer triggered correctly
 - [x] Events emitted (ChannelClosed)
 
-### Part 3: Appeal/Challenge Logic ✅
+### Part 3: Appeal/Challenge Logic
 - [x] `appealClosure()` function implemented
 - [x] Signature validation for appeals
 - [x] Serial number comparison working
@@ -114,7 +114,7 @@ The Channel.sol contract implements:
 - [x] Invalid/lower states rejected
 - [x] Events emitted (AppealMade)
 
-### Part 4: Final Settlement Logic ✅
+### Part 4: Final Settlement Logic
 - [x] `finalize()` implemented via `withdrawFunds()`
 - [x] Ether transferred correctly to both parties
 - [x] Re-entry protection working
@@ -134,3 +134,54 @@ Expected output shows:
 - Appeal mechanism overriding old state
 - Final settlement distributing funds correctly
 - Re-entry protection preventing double withdrawal
+
+
+## Milestone 3 Status: COMPLETED
+
+### Part 1: Node Class Structure
+- [x] `LightningNode` class implemented
+- [x] Attributes: address, private_key, channel references
+- [x] Signer helpers implemented
+- [x] Node objects initialize correctly
+- [x] Can sign messages
+- [x] All initialization tests pass
+
+### Part 2: State Update Messaging & Channel Closing
+- [x] `send()` method implemented for state updates
+- [x] Local state maintained correctly
+- [x] State signing working
+- [x] Network messaging via `Message` enum
+- [x] Sender signs correctly
+- [x] Receiver validates correctly
+- [x] Updates stored properly
+- [x] `close_channel()` implemented
+- [x] Blockchain call to `oneSidedClose()` working
+- [x] State + signature submitted correctly
+- [x] Timeout logic triggered
+- [x] Local node marked "closing"
+
+### Part 3: Appeal Handler
+- [x] `appeal_closed_chan()` implemented
+- [x] Detects invalid closure from blockchain
+- [x] Compares serial numbers correctly
+- [x] Submits newer state via appeal function
+- [x] Correct ordering ensured
+- [x] Newer state overrides old
+- [x] Tests confirm malicious node cannot steal funds
+
+### Testing
+Run Milestone 3 verification:
+```bash
+source venv/bin/activate
+python -m pytest tests/test_basic_scenarios.py -v
+```
+
+Expected output shows:
+- Channel establishment and immediate closure
+- Money transfers off-chain (no blockchain transactions)
+- Unilateral channel closure by either party
+- Appeal mechanism preventing fraud
+- Correct fund distribution after settlement
+- Protection against double-closure attempts
+
+All 7 basic scenario tests passing
