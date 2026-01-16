@@ -9,25 +9,25 @@ def test_web3_connection():
     
     # Test connection
     if w3.is_connected():
-        print("✅ Web3 connected to Hardhat successfully!")
+        print(" Web3 connected to Hardhat successfully!")
         
         # Get block number
         block_number = w3.eth.block_number
-        print(f"📦 Current block number: {block_number}")
+        print(f" Current block number: {block_number}")
         
         # Get accounts
         accounts = w3.eth.accounts
-        print(f"👥 Available accounts: {len(accounts)}")
-        print(f"🔑 First account: {accounts[0]}")
+        print(f" Available accounts: {len(accounts)}")
+        print(f" First account: {accounts[0]}")
         
         # Get balance
         balance = w3.eth.get_balance(accounts[0])
         balance_eth = w3.from_wei(balance, 'ether')
-        print(f"💰 Balance: {balance_eth} ETH")
+        print(f" Balance: {balance_eth} ETH")
         
         return True
     else:
-        print("❌ Failed to connect to Hardhat")
+        print(" Failed to connect to Hardhat")
         return False
 
 if __name__ == "__main__":
